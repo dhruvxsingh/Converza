@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import timedelta
-
+from app.auth.dependencies import get_current_user
 from app.core.database import get_db
+from fastapi.security import OAuth2PasswordRequestForm
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse
 from app.schemas.auth import UserLogin, Token
@@ -50,14 +51,17 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 @router.post("/login", response_model=Token)
-def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
     """Login and receive access token"""
     
     # Find user by username
-    user = db.query(User).filter(User.username == user_credentials.username).first()
+    user = db.query(User).filter(User.username == form_data.username).first()
     
     # Check if user exists and password is correct
-    if not user or not verify_password(user_credentials.password, user.hashed_password):
+    if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password"
@@ -74,3 +78,8 @@ def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
         "access_token": access_token,
         "token_type": "bearer"
     }
+
+@router.get("/me", response_model=UserResponse)
+async def get_me(current_user: User = Depends(get_current_user)):
+    """Get current user information"""
+    return current_user
