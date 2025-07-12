@@ -1,47 +1,80 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
+import Api from '../services/api';
 
 type NavigationProp = StackNavigationProp<RootStackParamList, 'ChatList'>;
 
-const DUMMY_CHATS = [
-  { id: '1', name: 'John Doe', lastMessage: 'Hey, how are you?', time: '2:30 PM' },
-  { id: '2', name: 'Jane Smith', lastMessage: 'See you tomorrow!', time: '1:45 PM' },
-  { id: '3', name: 'Bob Wilson', lastMessage: 'Thanks for the help', time: '12:00 PM' },
-];
+interface UserLite {
+  id: number;
+  username: string;
+}
 
 export default function ChatListScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const [users, setUsers] = useState<UserLite[]>([]);
 
-  const renderChat = ({ item }: any) => (
-    <TouchableOpacity 
+  /* ───────────────── fetch users once ───────────────── */
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await Api.getToken();
+        const res = await fetch(`${Api.baseREST}/api/users/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data: UserLite[] = await res.json();
+        setUsers(data);
+      } catch (err) {
+        console.warn('Failed to fetch users', err);
+      }
+    })();
+  }, []);
+
+  /* ───────────────── row renderer ───────────────── */
+  const renderChat = ({ item }: { item: UserLite }) => (
+    <TouchableOpacity
       style={styles.chatItem}
-      onPress={() => navigation.navigate('Chat', { userId: item.id, userName: item.name })}
+      onPress={() =>
+        navigation.navigate('Chat', {
+          userId: String(item.id),      // ChatScreen expects string
+          userName: item.username,
+        })
+      }
     >
       <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{item.name[0]}</Text>
+        <Text style={styles.avatarText}>
+          {item.username[0]?.toUpperCase()}
+        </Text>
       </View>
+
       <View style={styles.chatInfo}>
-        <Text style={styles.name}>{item.name}</Text>
-        <Text style={styles.lastMessage}>{item.lastMessage}</Text>
+        <Text style={styles.name}>{item.username}</Text>
+        <Text style={styles.lastMessage}>Tap to chat</Text>
       </View>
-      <Text style={styles.time}>{item.time}</Text>
     </TouchableOpacity>
   );
 
+  /* ───────────────── render list ───────────────── */
   return (
     <View style={styles.container}>
       <FlatList
-        data={DUMMY_CHATS}
+        data={users}
         renderItem={renderChat}
-        keyExtractor={item => item.id}
+        keyExtractor={(u) => u.id.toString()}
       />
     </View>
   );
 }
 
+/* ───────────────── styles ───────────────── */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -79,9 +112,5 @@ const styles = StyleSheet.create({
   lastMessage: {
     color: '#666',
     marginTop: 2,
-  },
-  time: {
-    color: '#999',
-    fontSize: 12,
   },
 });
