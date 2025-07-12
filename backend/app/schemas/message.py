@@ -12,6 +12,6 @@ class MessageResponse(BaseModel):
     content: str
     created_at: datetime
     is_read: bool
+    model_config = {"from_attributes": True}
     
-    class Config:
-        orm_mode = True
+   
