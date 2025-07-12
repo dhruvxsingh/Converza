@@ -4,12 +4,19 @@ import { Platform } from 'react-native';
 
 const YOUR_COMPUTER_IP = 'YOUR_IP_HERE'; // Update this for mobile testing
 
+const WS_URL = Platform.select({
+  web: 'ws://localhost:8000',
+  default: `ws://${YOUR_COMPUTER_IP}:8000`,
+});
+
 const API_URL = Platform.select({
   web: 'http://localhost:8000',
   default: `http://${YOUR_COMPUTER_IP}:8000`,
 });
 
 class ApiService {
+  public baseREST = API_URL;   // NEW ✔
+  public baseWS = WS_URL;
   private token: string | null = null;
 
   async setToken(token: string) {
