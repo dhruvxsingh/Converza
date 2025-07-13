@@ -5,3 +5,4 @@ Get-NetTCPConnection -LocalPort $Port `
   | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
 
 Write-Host "Killed anything bound to port $Port"
+#.\killport.ps1   8000
