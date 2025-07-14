@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
+  Platform,
   TouchableOpacity,
   FlatList,
   TextInput,
@@ -30,6 +31,10 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
 
+  const flatListRef = useRef<FlatList<any>>(null);
+  useEffect(() => {
+    flatListRef.current?.scrollToEnd({ animated: true });
+  }, [messages]);
   /* Load history ---------------------------------------------------------- */
   useEffect(() => {
     let alive = true;
@@ -40,7 +45,10 @@ export default function ChatScreen() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = await res.json();
-      if (alive) setMessages(data);
+      if (alive) {
+        const filtered = data.filter((m: any) => !('type' in m));
+        setMessages(filtered);
+      }
     })();
     return () => {
       alive = false;
@@ -48,9 +56,11 @@ export default function ChatScreen() {
   }, [partnerId]);
 
   /* Live socket ----------------------------------------------------------- */
-  const { send } = useChatSocket(partnerId, (msg) =>
-    setMessages((prev) => [...prev, msg])
-  );
+  const { send } = useChatSocket(partnerId, (msg) =>{
+    if (!('type' in msg)) {
+      setMessages(prev => [...prev, msg]);
+    }
+  });
 
   /* Send handler ---------------------------------------------------------- */
   const handleSend = () => {
@@ -79,7 +89,7 @@ export default function ChatScreen() {
         <Text style={styles.headerText}>Chat with {userName}</Text>
         <TouchableOpacity
           style={styles.videoButton}
-          onPress={() => navigation.navigate('VideoCall', { userId, userName })}
+          onPress={() => navigation.navigate('VideoCall', { partnerId: userId })}
         >
           <Text style={styles.videoButtonText}>📹</Text>
         </TouchableOpacity>
@@ -87,10 +97,14 @@ export default function ChatScreen() {
 
       {/* Messages */}
       <FlatList
+        ref={flatListRef}
         data={messages}
         keyExtractor={(m) => m.id.toString()}
         renderItem={renderItem}
-        contentContainerStyle={{ padding: 10 }}
+
+        /* 👇 ADD/CHANGE these two props */
+        style={[{ flex: 1 }, Platform.OS === 'web' && { overflowY: 'auto' } as any]}
+        contentContainerStyle={{ padding: 10, flexGrow: 1 }}
       />
 
       {/* Input */}
@@ -131,7 +145,13 @@ const styles = StyleSheet.create({
   },
   left: { backgroundColor: '#eee', alignSelf: 'flex-start' },
   right: { backgroundColor: '#4e8cff', alignSelf: 'flex-end' },
-  bubbleText: { color: '#000' },
+  
+  bubbleText: {
+    color: '#000',
+    ...(Platform.OS === 'web'
+      ? { wordBreak: 'break-word', whiteSpace: 'pre-wrap' }
+      : {}),
+  },
 
   inputRow: {
     flexDirection: 'row',
