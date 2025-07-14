@@ -42,11 +42,23 @@ export default function useChatSocket(
     };
   }, [partnerId]);
 
-  const send = (content: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ content }));
+  type Outgoing =
+    | string                              // normal chat
+    | { type: string; [key: string]: any }; // signalling with any type
+
+  const send = (payload: Outgoing) => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+
+    if (typeof payload === 'string') {
+      // chat text → wrap exactly as before
+      wsRef.current.send(JSON.stringify({ content: payload }));
+    } else {
+      // signalling JSON → send as-is
+      wsRef.current.send(JSON.stringify(payload));
     }
   };
+
+
 
   return { send };
 }
