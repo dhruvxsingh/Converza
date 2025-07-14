@@ -1,5 +1,6 @@
 // src/navigation/AppNavigator.tsx
 import React from 'react';
+import { Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import LoginScreen from '../screens/LoginScreen';
@@ -57,7 +58,7 @@ export default function AppNavigator() {
           component={VideoCallScreen}
           options={{ 
             title: 'Video Call',
-            headerShown: false 
+            headerShown: Platform.OS === 'web' 
           }}
         />
       </Stack.Navigator>
