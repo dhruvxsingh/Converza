@@ -62,6 +62,10 @@ async def chat_ws(
     try:
         while True:
             data = await websocket.receive_json()
+            msg_type = data.get("type")
+            if msg_type in {"offer", "answer", "ice"}:
+                await manager.broadcast(room, data)
+                continue
             content = data.get("content", "").strip()
             if not content:
                 continue
