@@ -1,3 +1,4 @@
+# backend/app/api/endpoints/chat.py
 from datetime import datetime
 from typing import Dict, List
 
@@ -5,10 +6,10 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPExce
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.database import get_db, SessionLocal      # NEW import
+from app.core.database import get_db, SessionLocal
 from app.auth.dependencies import (
     get_current_user_ws,
-    get_current_user,                                   # NEW import
+    get_current_user,
 )
 from app.models.message import Message
 from app.schemas.message import MessageResponse, MessageCreate
@@ -54,7 +55,7 @@ async def chat_ws(
 ):
     """
     WebSocket URL:  ws://…/api/chat/ws/<partner_id>?token=<JWT>
-    Protocol: plain JSON -> { content: "Hello" }
+    Protocol: JSON messages with different types
     """
     room = room_id(current_user.id, partner_id)
     await manager.connect(room, websocket)
@@ -63,15 +64,25 @@ async def chat_ws(
         while True:
             data = await websocket.receive_json()
             msg_type = data.get("type")
+            
+            # Handle video call signaling messages
+            if msg_type in {"call-offer", "call-answer", "ice-candidate", "call-end"}:
+                # Just broadcast these without storing
+                await manager.broadcast(room, data)
+                continue
+            
+            # Handle old WebRTC message types (for backward compatibility)
             if msg_type in {"offer", "answer", "ice"}:
                 await manager.broadcast(room, data)
                 continue
+                
+            # Handle regular chat messages
             content = data.get("content", "").strip()
             if not content:
                 continue
 
             # 1. Persist message
-            db = SessionLocal()                      # OPEN session
+            db = SessionLocal()
             try:
                 msg = Message(
                     sender_id=current_user.id,
@@ -82,13 +93,16 @@ async def chat_ws(
                 db.add(msg)
                 db.commit()
                 db.refresh(msg)
-            finally:
-                db.close()   
-
+                
+                # Convert to response format
                 payload = MessageResponse.model_validate(msg).model_dump(mode="json")
-
-            # 2. Broadcast to both ends
-            await manager.broadcast(room, payload)
+                
+                # 2. Broadcast to both ends
+                await manager.broadcast(room, payload)
+                
+            finally:
+                db.close()
+                
     except WebSocketDisconnect:
         manager.disconnect(room, websocket)
 
