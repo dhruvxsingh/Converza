@@ -3,6 +3,24 @@ import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import useChatSocket from './useChatSocket';
 
+// Import RTCPeerConnection and related types
+let RTCPeerConnection: any;
+let RTCSessionDescription: any;
+let RTCIceCandidate: any;
+let mediaDevices: any;
+
+if (Platform.OS === 'web') {
+  RTCPeerConnection = window.RTCPeerConnection;
+  RTCSessionDescription = window.RTCSessionDescription;
+  RTCIceCandidate = window.RTCIceCandidate;
+} else {
+  const webrtc = require('react-native-webrtc');
+  RTCPeerConnection = webrtc.RTCPeerConnection;
+  RTCSessionDescription = webrtc.RTCSessionDescription;
+  RTCIceCandidate = webrtc.RTCIceCandidate;
+  mediaDevices = webrtc.mediaDevices;
+}
+
 type CallState = 'idle' | 'calling' | 'incoming' | 'connected' | 'ended';
 
 interface UseWebRTCReturn {
@@ -70,7 +88,6 @@ export default function useWebRTC(partnerId: number): UseWebRTCReturn {
           audio: true
         });
       } else {
-        const { mediaDevices } = require('react-native-webrtc');
         stream = await mediaDevices.getUserMedia({
           video: { facingMode: 'user' },
           audio: true
@@ -99,21 +116,21 @@ export default function useWebRTC(partnerId: number): UseWebRTCReturn {
     
     // Add local stream tracks
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => {
+      localStreamRef.current.getTracks().forEach((track: MediaStreamTrack) => {
         pc.addTrack(track, localStreamRef.current!);
       });
     }
 
-    // Handle remote stream
-    pc.ontrack = (event) => {
+    // Handle remote stream - Fix TypeScript error here
+    pc.ontrack = (event: RTCTrackEvent) => {
       console.log('Received remote track');
       if (event.streams && event.streams[0]) {
         setRemoteStream(event.streams[0]);
       }
     };
 
-    // Handle ICE candidates
-    pc.onicecandidate = (event) => {
+    // Handle ICE candidates - Fix TypeScript error here
+    pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
       if (event.candidate) {
         console.log('Sending ICE candidate');
         send({
@@ -220,7 +237,7 @@ export default function useWebRTC(partnerId: number): UseWebRTCReturn {
     
     // Stop local stream
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current.getTracks().forEach((track: MediaStreamTrack) => track.stop());
       localStreamRef.current = null;
     }
     
