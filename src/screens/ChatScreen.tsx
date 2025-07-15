@@ -1,3 +1,4 @@
+// src/screens/ChatScreen.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -7,6 +8,7 @@ import {
   TouchableOpacity,
   FlatList,
   TextInput,
+  Modal,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { RouteProp } from '@react-navigation/native';
@@ -23,19 +25,20 @@ export default function ChatScreen() {
   const route = useRoute<ChatScreenRouteProp>();
   const navigation = useNavigation<NavigationProp>();
 
-  /* Route params ---------------------------------------------------------- */
-  const { userName, userId } = route.params;        // userId is string
-  const partnerId = Number(userId);                 // <- convert once
+  const { userName, userId } = route.params;
+  const partnerId = Number(userId);
 
-  /* Local state ----------------------------------------------------------- */
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
+  const [showIncomingCall, setShowIncomingCall] = useState(false);
 
   const flatListRef = useRef<FlatList<any>>(null);
+  
   useEffect(() => {
     flatListRef.current?.scrollToEnd({ animated: true });
   }, [messages]);
-  /* Load history ---------------------------------------------------------- */
+
+  // Load history
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -55,14 +58,25 @@ export default function ChatScreen() {
     };
   }, [partnerId]);
 
-  /* Live socket ----------------------------------------------------------- */
-  const { send } = useChatSocket(partnerId, (msg) =>{
-    if (!('type' in msg)) {
-      setMessages(prev => [...prev, msg]);
+  // Live socket with incoming call detection
+  const { send } = useChatSocket(partnerId, (msg) => {
+  // Handle incoming call
+  if (typeof msg === 'object' && 'type' in msg) {
+    if ((msg as any).type === 'call-offer') {
+      setShowIncomingCall(true);
+      return;
     }
-  });
+    // Ignore other signaling messages
+    return;
+  }
+  
+  // Handle regular chat messages
+  if (typeof msg === 'object' && 'content' in msg && 'id' in msg) {
+    setMessages(prev => [...prev, msg as ChatMessage]);
+  }
+});
 
-  /* Send handler ---------------------------------------------------------- */
+  // Send handler
   const handleSend = () => {
     const text = input.trim();
     if (!text) return;
@@ -70,7 +84,25 @@ export default function ChatScreen() {
     setInput('');
   };
 
-  /* Render ---------------------------------------------------------------- */
+  // Start video call
+  const startVideoCall = () => {
+    navigation.navigate('VideoCall', { partnerId: userId });
+  };
+
+  // Accept incoming call
+  const acceptIncomingCall = () => {
+    setShowIncomingCall(false);
+    navigation.navigate('VideoCall', { partnerId: userId });
+  };
+
+  // Decline incoming call
+  const declineIncomingCall = () => {
+    setShowIncomingCall(false);
+    send({ type: 'call-end' });
+    send('📞 Missed call');
+  };
+
+  // Render message item
   const renderItem = ({ item }: { item: ChatMessage }) => (
     <View
       style={[
@@ -79,6 +111,12 @@ export default function ChatScreen() {
       ]}
     >
       <Text style={styles.bubbleText}>{item.content}</Text>
+      <Text style={styles.timeText}>
+        {new Date(item.created_at).toLocaleTimeString([], { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        })}
+      </Text>
     </View>
   );
 
@@ -89,7 +127,7 @@ export default function ChatScreen() {
         <Text style={styles.headerText}>Chat with {userName}</Text>
         <TouchableOpacity
           style={styles.videoButton}
-          onPress={() => navigation.navigate('VideoCall', { partnerId: userId })}
+          onPress={startVideoCall}
         >
           <Text style={styles.videoButtonText}>📹</Text>
         </TouchableOpacity>
@@ -101,8 +139,6 @@ export default function ChatScreen() {
         data={messages}
         keyExtractor={(m) => m.id.toString()}
         renderItem={renderItem}
-
-        /* 👇 ADD/CHANGE these two props */
         style={[{ flex: 1 }, Platform.OS === 'web' && { overflowY: 'auto' } as any]}
         contentContainerStyle={{ padding: 10, flexGrow: 1 }}
       />
@@ -114,16 +150,46 @@ export default function ChatScreen() {
           onChangeText={setInput}
           placeholder="Type a message"
           style={styles.input}
+          onSubmitEditing={handleSend}
         />
         <TouchableOpacity style={styles.sendBtn} onPress={handleSend}>
           <Text style={{ color: 'white' }}>Send</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Incoming Call Modal */}
+      <Modal
+        visible={showIncomingCall}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Incoming Video Call</Text>
+            <Text style={styles.modalText}>{userName} is calling you...</Text>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.acceptButton]}
+                onPress={acceptIncomingCall}
+              >
+                <Text style={styles.modalButtonText}>Accept</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.modalButton, styles.declineButton]}
+                onPress={declineIncomingCall}
+              >
+                <Text style={styles.modalButtonText}>Decline</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-/* Styles ------------------------------------------------------------------ */
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
@@ -148,9 +214,16 @@ const styles = StyleSheet.create({
   
   bubbleText: {
     color: '#000',
+    fontSize: 16,
     ...(Platform.OS === 'web'
       ? { wordBreak: 'break-word', whiteSpace: 'pre-wrap' }
       : {}),
+  },
+  
+  timeText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
   },
 
   inputRow: {
@@ -165,6 +238,7 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     borderRadius: 20,
     paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   sendBtn: {
     backgroundColor: '#4e8cff',
@@ -172,5 +246,54 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     justifyContent: 'center',
     marginLeft: 8,
+  },
+  
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    width: '80%',
+    maxWidth: 300,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  modalText: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+  },
+  modalButton: {
+    paddingHorizontal: 25,
+    paddingVertical: 12,
+    borderRadius: 25,
+    marginHorizontal: 10,
+  },
+  acceptButton: {
+    backgroundColor: '#4CAF50',
+  },
+  declineButton: {
+    backgroundColor: '#F44336',
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

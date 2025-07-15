@@ -1,108 +1,273 @@
 // src/screens/VideoCallScreen.tsx
 import React, { useEffect, useRef } from 'react';
-import { RootStackParamList } from '../types/navigation';   // << ensure correct path
-
 import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
+  TouchableOpacity,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-
+import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
+import { RootStackParamList } from '../types/navigation';
 import useWebRTC from '../hooks/useWebRTC';
-import { useRoute, RouteProp } from '@react-navigation/native';
 
-// ─── Conditional native import ────────────────────────────
-import type { MediaStream } from 'react-native-webrtc';
+// Conditional native import
 let RTCView: any = null;
 if (Platform.OS !== 'web') {
   const webrtc = require('react-native-webrtc');
   RTCView = webrtc.RTCView;
 }
-// ──────────────────────────────────────────────────────────
-
-type Props = { route: { params: { partnerId: string } } };
 
 export default function VideoCallScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'VideoCall'>>();
-
+  const navigation = useNavigation();
   const { partnerId } = route.params;
 
-  const { local, remote, startCall } = useWebRTC(Number(partnerId));
+  const {
+    localStream,
+    remoteStream,
+    callState,
+    startCall,
+    acceptCall,
+    endCall,
+  } = useWebRTC(Number(partnerId));
 
-  /* web refs */
-  const localRef = useRef<HTMLVideoElement>(null);
-  const remoteRef = useRef<HTMLVideoElement>(null);
+  // Web video refs
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
-  /* kick off call once */
+  // Start call on mount (if not incoming)
   useEffect(() => {
-    startCall();
+    if (callState === 'idle') {
+      startCall();
+    }
   }, []);
 
-  /* bind web streams whenever they change */
+  // Handle web video streams
   useEffect(() => {
-    if (Platform.OS === 'web' && localRef.current && local) {
-      (localRef.current as any).srcObject = local as unknown as MediaStream;
-      localRef.current.muted = true;
-      localRef.current.play();
+    if (Platform.OS === 'web' && localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream as any;
     }
-  }, [local]);
+  }, [localStream]);
 
   useEffect(() => {
-    if (Platform.OS === 'web' && remoteRef.current && remote) {
-      (remoteRef.current as any).srcObject = remote as unknown as MediaStream;
-      remoteRef.current.play();
+    if (Platform.OS === 'web' && remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream as any;
     }
-  }, [remote]);
+  }, [remoteStream]);
 
-  /* ---------- loading ---------- */
-  if (!local) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={{ marginTop: 8 }}>Opening camera…</Text>
-      </View>
-    );
-  }
+  // Handle call end
+  const handleEndCall = () => {
+    endCall();
+    navigation.goBack();
+  };
 
-  /* ---------- render ---------- */
-  return (
-    <View style={styles.row}>
-      {/* LOCAL */}
-      {Platform.OS === 'web' ? (
-        <video ref={localRef} style={styles.webVid} playsInline autoPlay />
-      ) : (
-        <RTCView
-          streamURL={(local as any).toURL()}
-          style={styles.nativeVid}
-          objectFit="cover"
-        />
-      )}
+  // Render based on call state
+  const renderContent = () => {
+    switch (callState) {
+      case 'calling':
+        return (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#fff" />
+            <Text style={styles.statusText}>Calling...</Text>
+            <TouchableOpacity style={styles.endButton} onPress={handleEndCall}>
+              <Text style={styles.endButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        );
 
-      {/* REMOTE */}
-      {Platform.OS === 'web' ? (
-        <video ref={remoteRef} style={styles.webVid} playsInline autoPlay />
-      ) : remote ? (
-        <RTCView
-          streamURL={(remote as any).toURL()}
-          style={styles.nativeVid}
-          objectFit="cover"
-        />
-      ) : (
-        <View style={styles.wait}>
-          <Text style={{ color: '#fff' }}>Waiting for peer…</Text>
-        </View>
-      )}
-    </View>
-  );
+      case 'incoming':
+        return (
+          <View style={styles.centerContainer}>
+            <Text style={styles.statusText}>Incoming Video Call</Text>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity style={styles.acceptButton} onPress={acceptCall}>
+                <Text style={styles.buttonText}>Accept</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.declineButton} onPress={handleEndCall}>
+                <Text style={styles.buttonText}>Decline</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+
+      case 'connected':
+      case 'idle':
+        return (
+          <>
+            {/* Video Streams Container */}
+            <View style={styles.videoContainer}>
+              {/* Remote Stream (Full Screen) */}
+              {remoteStream ? (
+                Platform.OS === 'web' ? (
+                  <video
+                    ref={remoteVideoRef}
+                    style={styles.remoteVideoWeb}
+                    autoPlay
+                    playsInline
+                  />
+                ) : (
+                  <RTCView
+                    streamURL={(remoteStream as any).toURL()}
+                    style={styles.remoteVideo}
+                    objectFit="cover"
+                  />
+                )
+              ) : (
+                <View style={styles.placeholderContainer}>
+                  <Text style={styles.placeholderText}>Waiting for peer video...</Text>
+                </View>
+              )}
+
+              {/* Local Stream (Picture-in-Picture) */}
+              {localStream && (
+                <View style={styles.localVideoContainer}>
+                  {Platform.OS === 'web' ? (
+                    <video
+                      ref={localVideoRef}
+                      style={styles.localVideoWeb}
+                      autoPlay
+                      playsInline
+                      muted
+                    />
+                  ) : (
+                    <RTCView
+                      streamURL={(localStream as any).toURL()}
+                      style={styles.localVideo}
+                      objectFit="cover"
+                      zOrder={1}
+                    />
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* Call Controls */}
+            <View style={styles.controlsContainer}>
+              <TouchableOpacity style={styles.endCallButton} onPress={handleEndCall}>
+                <Text style={styles.endCallButtonText}>End Call</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return <View style={styles.container}>{renderContent()}</View>;
 }
 
-/* ---------- styles ---------- */
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  row: { flex: 1, flexDirection: 'row', backgroundColor: '#000' },
-  nativeVid: { flex: 1 },
-  webVid: { width: '50%', height: '100%', backgroundColor: '#000' },
-  wait: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statusText: {
+    color: '#fff',
+    fontSize: 20,
+    marginVertical: 20,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    marginTop: 30,
+  },
+  acceptButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 30,
+    marginHorizontal: 10,
+  },
+  declineButton: {
+    backgroundColor: '#F44336',
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 30,
+    marginHorizontal: 10,
+  },
+  endButton: {
+    backgroundColor: '#F44336',
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 30,
+    marginTop: 20,
+  },
+  endButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  videoContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  remoteVideo: {
+    flex: 1,
+  },
+  remoteVideoWeb: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover' as any,
+  },
+  placeholderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+  },
+  placeholderText: {
+    color: '#666',
+    fontSize: 16,
+  },
+  localVideoContainer: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    width: 120,
+    height: 160,
+    borderRadius: 10,
+    overflow: 'hidden',
+    elevation: 10,
+    zIndex: 10,
+    backgroundColor: '#000',
+  },
+  localVideo: {
+    flex: 1,
+  },
+  localVideoWeb: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover' as any,
+  },
+  controlsContainer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  endCallButton: {
+    backgroundColor: '#F44336',
+    paddingHorizontal: 40,
+    paddingVertical: 15,
+    borderRadius: 30,
+  },
+  endCallButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
 });
