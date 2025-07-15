@@ -11,9 +11,19 @@ export interface ChatMessage {
   is_read: boolean;
 }
 
+// Add signaling message types
+export type SignalingMessage = {
+  type: 'call-offer' | 'call-answer' | 'ice-candidate' | 'call-end';
+  offer?: RTCSessionDescriptionInit;
+  answer?: RTCSessionDescriptionInit;
+  candidate?: RTCIceCandidateInit;
+};
+
+export type IncomingMessage = ChatMessage | SignalingMessage;
+
 export default function useChatSocket(
   partnerId: number,
-  onMessage: (msg: ChatMessage) => void,
+  onMessage: (msg: IncomingMessage) => void,
 ) {
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -29,7 +39,7 @@ export default function useChatSocket(
 
       ws.onmessage = (ev) => {
         if (!isMounted) return;
-        const data: ChatMessage = JSON.parse(ev.data);
+        const data = JSON.parse(ev.data);
         onMessage(data);
       };
 
@@ -57,8 +67,6 @@ export default function useChatSocket(
       wsRef.current.send(JSON.stringify(payload));
     }
   };
-
-
 
   return { send };
 }
