@@ -96,6 +96,14 @@ export default function VideoCallScreen() {
       case 'idle':
         return (
           <>
+          <View style={styles.debugInfo}>
+            <Text style={styles.debugText}>
+              Local Stream: {localStream ? 'Active' : 'None'}
+            </Text>
+            <Text style={styles.debugText}>
+              Remote Stream: {remoteStream ? 'Active' : 'None'}
+            </Text>
+          </View>
             {/* Video Streams Container */}
             <View style={styles.videoContainer}>
               {/* Remote Stream (Full Screen) */}
@@ -186,6 +194,18 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     marginHorizontal: 10,
   },
+  debugInfo: {
+  position: 'absolute',
+  top: 50,
+  left: 10,
+  zIndex: 100,
+},
+debugText: {
+  color: 'yellow',
+  fontSize: 14,
+  backgroundColor: 'rgba(0,0,0,0.5)',
+  padding: 5,
+},
   declineButton: {
     backgroundColor: '#F44336',
     paddingHorizontal: 30,

@@ -31,6 +31,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [showIncomingCall, setShowIncomingCall] = useState(false);
+  const hasIncomingCallRef = useRef(false);
 
   const flatListRef = useRef<FlatList<any>>(null);
   
@@ -60,21 +61,21 @@ export default function ChatScreen() {
 
   // Live socket with incoming call detection
   const { send } = useChatSocket(partnerId, (msg) => {
-  // Handle incoming call
-  if (typeof msg === 'object' && 'type' in msg) {
-    if ((msg as any).type === 'call-offer') {
-      setShowIncomingCall(true);
+    // Handle incoming call
+    if (typeof msg === 'object' && 'type' in msg) {
+      if ((msg as any).type === 'call-offer' && !hasIncomingCallRef.current) {
+        hasIncomingCallRef.current = true;  // Set flag
+        setShowIncomingCall(true);
+        return;
+      }
+      // Ignore other signaling messages
       return;
     }
-    // Ignore other signaling messages
-    return;
-  }
-  
-  // Handle regular chat messages
-  if (typeof msg === 'object' && 'content' in msg && 'id' in msg) {
-    setMessages(prev => [...prev, msg as ChatMessage]);
-  }
-});
+    if (typeof msg === 'object' && 'content' in msg && 'id' in msg) {
+      setMessages(prev => [...prev, msg as ChatMessage]);
+    }
+  });
+
 
   // Send handler
   const handleSend = () => {
@@ -91,12 +92,14 @@ export default function ChatScreen() {
 
   // Accept incoming call
   const acceptIncomingCall = () => {
+    hasIncomingCallRef.current = false;  // Reset flag
     setShowIncomingCall(false);
     navigation.navigate('VideoCall', { partnerId: userId });
   };
 
   // Decline incoming call
   const declineIncomingCall = () => {
+    hasIncomingCallRef.current = false;  // Reset flag
     setShowIncomingCall(false);
     send({ type: 'call-end' });
     send('📞 Missed call');
