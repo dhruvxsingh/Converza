@@ -1,11 +1,10 @@
 # backend/app/api/endpoints/chat.py
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
 from app.core.database import get_db, SessionLocal
 from app.auth.dependencies import (
     get_current_user_ws,
@@ -18,24 +17,41 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 # --- Connection manager ---
 class ConnectionManager:
-    # room_key -> list[WebSocket]
-    rooms: Dict[str, List[WebSocket]] = {}
+    def __init__(self):
+        # room_key -> list of (user_id, websocket) tuples
+        self.rooms: Dict[str, List[Tuple[int, WebSocket]]] = {}
 
-    async def connect(self, room: str, websocket: WebSocket):
+    async def connect(self, room: str, user_id: int, websocket: WebSocket):
         await websocket.accept()
-        self.rooms.setdefault(room, []).append(websocket)
+        if room not in self.rooms:
+            self.rooms[room] = []
+        self.rooms[room].append((user_id, websocket))
 
-    def disconnect(self, room: str, websocket: WebSocket):
+    def disconnect(self, room: str, user_id: int, websocket: WebSocket):
         if room in self.rooms:
-            self.rooms[room].remove(websocket)
+            self.rooms[room] = [(uid, ws) for uid, ws in self.rooms[room] 
+                               if not (uid == user_id and ws == websocket)]
             if not self.rooms[room]:
-                self.rooms.pop(room)
+                del self.rooms[room]
 
-    async def broadcast(self, room: str, message: dict):
+    async def broadcast(self, room: str, message: dict, exclude_user_id: int = None):
         if room not in self.rooms:
             return
-        for ws in self.rooms[room]:
-            await ws.send_json(message)
+        
+        disconnected = []
+        for user_id, ws in self.rooms[room]:
+            # Skip sending to excluded user for signaling messages
+            if exclude_user_id and user_id == exclude_user_id and message.get("type") in ["call-offer", "call-answer", "ice-candidate"]:
+                continue
+            
+            try:
+                await ws.send_json(message)
+            except:
+                disconnected.append((user_id, ws))
+        
+        # Clean up disconnected websockets
+        for user_id, ws in disconnected:
+            self.disconnect(room, user_id, ws)
 
 
 manager = ConnectionManager()
@@ -58,8 +74,8 @@ async def chat_ws(
     Protocol: JSON messages with different types
     """
     room = room_id(current_user.id, partner_id)
-    await manager.connect(room, websocket)
-
+    await manager.connect(room, current_user.id, websocket)
+    
     try:
         while True:
             data = await websocket.receive_json()
@@ -67,15 +83,10 @@ async def chat_ws(
             
             # Handle video call signaling messages
             if msg_type in {"call-offer", "call-answer", "ice-candidate", "call-end"}:
-                # Just broadcast these without storing
-                await manager.broadcast(room, data)
+                # Don't send back to sender for signaling
+                await manager.broadcast(room, data, exclude_user_id=current_user.id)
                 continue
             
-            # Handle old WebRTC message types (for backward compatibility)
-            if msg_type in {"offer", "answer", "ice"}:
-                await manager.broadcast(room, data)
-                continue
-                
             # Handle regular chat messages
             content = data.get("content", "").strip()
             if not content:
@@ -97,14 +108,14 @@ async def chat_ws(
                 # Convert to response format
                 payload = MessageResponse.model_validate(msg).model_dump(mode="json")
                 
-                # 2. Broadcast to both ends
+                # 2. Broadcast to both users (including sender for chat)
                 await manager.broadcast(room, payload)
                 
             finally:
                 db.close()
                 
     except WebSocketDisconnect:
-        manager.disconnect(room, websocket)
+        manager.disconnect(room, current_user.id, websocket)
 
 
 # ---- History endpoint ------------------------------------------------------
