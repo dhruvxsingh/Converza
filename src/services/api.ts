@@ -2,7 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-const YOUR_COMPUTER_IP = '192.168.76.118'; // Update this for mobile testing
+const YOUR_COMPUTER_IP = '192.168.17.118'; // Update this for mobile testing
 
 const WS_URL = Platform.select({
   web: 'ws://localhost:8000',
