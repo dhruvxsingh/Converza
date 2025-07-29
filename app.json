@@ -46,7 +46,8 @@
     "extra": {
       "eas": {
         "projectId": "1ab806bb-bd26-4e85-810c-0d02ba4d4fc6"
-      }
+      },
+      "API_BASE": "https://converza-ewii.onrender.com"
     }
   }
 }
