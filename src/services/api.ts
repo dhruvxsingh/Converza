@@ -1,19 +1,38 @@
 // src/services/api.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+
 
 const YOUR_COMPUTER_IP = '192.168.17.118'; // Update this for mobile testing
 
-const WS_URL = Platform.select({
-  web: 'ws://localhost:8000',
-  default: `ws://${YOUR_COMPUTER_IP}:8000`,
-});
+// const WS_URL = Platform.select({
+//   web: 'ws://localhost:8000',
+//   default: `ws://${YOUR_COMPUTER_IP}:8000`,
+// });
 
-const API_URL = Platform.select({
-  web: 'http://localhost:8000',
-  default: `http://${YOUR_COMPUTER_IP}:8000`,
-});
+// const API_URL = Platform.select({
+//   web: 'http://localhost:8000',
+//   default: `http://${YOUR_COMPUTER_IP}:8000`,
+// });
+const REMOTE_API =
+  (Constants.expoConfig?.extra as any)?.API_BASE as string | undefined;
 
+// fallback for local LAN testing
+const LAN_IP = '10.23.28.24';          // ← change if your IP changes
+const LOCAL_API = `http://${LAN_IP}:8000`;
+const LOCAL_WS  = `ws://${LAN_IP}:8000`;
+
+// pick per platform
+export const API_URL = Platform.select({
+  web:  REMOTE_API ?? 'http://localhost:8000',
+  default: REMOTE_API ?? LOCAL_API,
+})!;
+
+export const WS_URL = Platform.select({
+  web:  (REMOTE_API ? REMOTE_API.replace('http', 'ws') : 'ws://localhost:8000'),
+  default: REMOTE_API ? REMOTE_API.replace('http', 'ws') : LOCAL_WS,
+})!;
 class ApiService {
   public baseREST = API_URL;   // NEW ✔
   public baseWS = WS_URL;
