@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="INSERT_LOGO_IMAGE" height="80" alt="Converza logo"/><br/>
+  <img src="./img1.png" width="90%" alt="Converza logo"/><br/>
   Converza
 </h1>
 <p align="center">
@@ -34,7 +34,7 @@
 
 | Web (Chrome) | Android (Appetize iframe) |
 |--------------|---------------------------|
-| ![Web GIF](INSERT_WEB_GIF) | ![Phone GIF](INSERT_PHONE_GIF) |
+| ![Web GIF](./img3.png) | ![Phone GIF](./img2.png) |
 
 > First load may take ~30 s while the free Render instance cold-starts.
 
@@ -54,7 +54,31 @@
 ---
 
 ## 📂  Repo Structure
-converza/ │ ├─ app.json # Expo config (camera/mic permissions, API_BASE) ├─ eas.json # Dev, preview, production build profiles ├─ backend/ │ ├─ app/ │ │ ├─ main.py # FastAPI app + CORS │ │ ├─ auth/ # JWT utils & deps │ │ ├─ models/ # User, Message │ │ └─ api/endpoints/ │ │ ├─ auth.py # /register, /login, /me │ │ └─ chat.py # REST history + WebSocket signalling │ └─ requirements.txt │ └─ src/ ├─ navigation/AppNavigator.tsx ├─ screens/ │ ├─ LoginScreen.tsx │ ├─ ChatListScreen.tsx │ ├─ ChatScreen.tsx │ └─ VideoCallScreen.tsx # local + remote streams ├─ hooks/ │ ├─ useChatSocket.ts # JWT-secured WS │ └─ useWebRTC.ts # offer / answer / ICE └─ services/api.ts
+```bash
+converza/
+├── app.json # Expo config (camera/mic permissions, API_BASE)
+├── eas.json # Dev, preview, production build profiles
+├── backend/
+│ ├── app/
+│ │ ├── main.py # FastAPI app + CORS
+│ │ ├── auth/ # JWT utils & deps
+│ │ ├── models/ # User, Message
+│ │ └── api/endpoints/
+│ │ ├── auth.py # /register, /login, /me
+│ │ └── chat.py # REST history + WebSocket signalling
+│ └── requirements.txt
+├── src/
+│ ├── navigation/AppNavigator.tsx
+│ ├── screens/
+│ │ ├── LoginScreen.tsx
+│ │ ├── ChatListScreen.tsx
+│ │ ├── ChatScreen.tsx
+│ │ └── VideoCallScreen.tsx # local + remote streams
+│ ├── hooks/
+│ │ ├── useChatSocket.ts # JWT-secured WebSocket
+│ │ └── useWebRTC.ts # offer / answer / ICE
+│ └── services/api.ts
+```
 
 ---
 
@@ -78,8 +102,10 @@ npm i
 # dev-client (mobile) + web
 npx expo start --dev-client --lan
 npx expo start --web
-Production Build
-text
+
+```
+## 🛠 Production Build
+```bash
 
 # production APK (renders API_BASE from eas.json)
 eas build --profile production --platform android
