@@ -15,12 +15,11 @@
       "android": {
         "buildType": "apk"
       },
-      "autoIncrement": true
-    },
-    "env": {
+      "autoIncrement": true,
+      "env": {
         "EXPO_PUBLIC_API_URL": "https://converza-ewii.onrender.com"
       }
-
+    }
   },
   "submit": {
     "production": {}
